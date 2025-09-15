@@ -3,28 +3,44 @@ import { Camera, CameraOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import VoiceRecorder from "./VoiceRecorder";
 
-export default function Interview({ title, questions }) {
+export default function Interview({ title, questions, expectedAnswers }) {
   const [currentQ, setCurrentQ] = useState(0);
   const [answers, setAnswers] = useState([]);
   const [isCameraOn, setIsCameraOn] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [stopSignal, setStopSignal] = useState(0);
+  const [showWarning, setShowWarning] = useState(false);
+  const [countdown, setCountdown] = useState(5);
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const navigate = useNavigate();
 
-  // 🆕 Reset answers when starting a new interview
+  // Reset answers when starting a new interview
   useEffect(() => {
-    setAnswers(Array(questions.length).fill("")); // clear all textareas
-    setCurrentQ(0);
-    localStorage.removeItem("answers"); // optional: clear old stored answers
-  }, [questions, title]);
+    if (questions.length > 0) {
+      setAnswers(Array(questions.length).fill(""));
+      setCurrentQ(0);
+      localStorage.removeItem("answers");
+    }
+  }, [questions.length]);
 
-  // Save answers in localStorage (only while in same session)
+  // Save answers
   useEffect(() => {
     localStorage.setItem("answers", JSON.stringify(answers));
   }, [answers]);
+
+  // Auto-redirect after 5s if warning is shown
+  useEffect(() => {
+    let timer;
+    if (showWarning && countdown > 0) {
+      timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    }
+    if (showWarning && countdown === 0) {
+      navigate("/summary", { state: { questions, answers, expectedAnswers } });
+    }
+    return () => clearTimeout(timer);
+  }, [showWarning, countdown, navigate, questions, answers, expectedAnswers]);
 
   // 🎥 Start camera
   const startCamera = async () => {
@@ -49,12 +65,31 @@ export default function Interview({ title, questions }) {
         };
       }
 
+      const [videoTrack] = stream.getVideoTracks();
+      videoTrack.onended = () => {
+        console.warn("Camera stopped! Showing warning...");
+        setShowWarning(true);
+        setCountdown(5);
+      };
+
       setIsCameraOn(true);
       setIsMuted(false);
     } catch (err) {
       console.error("Camera error:", err.name, err.message);
+      setShowWarning(true);
+      setCountdown(5);
     }
   };
+
+  // Auto-start camera on mount
+  useEffect(() => {
+    startCamera();
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
 
   // 🎥 Stop camera
   const stopCamera = () => {
@@ -66,9 +101,11 @@ export default function Interview({ title, questions }) {
       videoRef.current.srcObject = null;
     }
     setIsCameraOn(false);
+    setShowWarning(true);
+    setCountdown(5);
   };
 
-  // 🎤 Mute/unmute audio
+  // 🎤 Mute/unmute
   const toggleMute = () => {
     if (streamRef.current) {
       streamRef.current.getAudioTracks().forEach((track) => {
@@ -80,14 +117,13 @@ export default function Interview({ title, questions }) {
 
   // 👉 Next question
   const nextQuestion = () => {
-    // 🛑 stop mic before moving on
     setStopSignal((s) => s + 1);
 
     if (currentQ < questions.length - 1) {
       setCurrentQ((q) => q + 1);
     } else {
       navigate("/summary", {
-        state: { questions, answers },
+        state: { questions, answers, expectedAnswers },
       });
     }
   };
@@ -98,75 +134,123 @@ export default function Interview({ title, questions }) {
         {title}
       </h1>
 
-      {/* Camera Preview */}
-      <div className="flex justify-center mb-6">
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className="w-80 h-60 bg-black rounded-xl shadow"
-        ></video>
-      </div>
+      {/* Warning Modal */}
+      {showWarning && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-white p-6 rounded-xl shadow-lg max-w-sm text-center">
+            <h2 className="text-xl font-bold text-red-600 mb-4">⚠ Camera Stopped</h2>
+            <p className="text-gray-700 mb-4">
+              Your camera has been turned off. The interview will now end.
+            </p>
+            <p className="text-gray-600 mb-6">
+              Redirecting to summary in{" "}
+              <span className="font-bold">{countdown}</span> seconds...
+            </p>
+            <button
+              onClick={() =>
+                navigate("/summary", {
+                  state: { questions, answers, expectedAnswers },
+                })
+              }
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+            >
+              OK, Go to Summary Now
+            </button>
+          </div>
+        </div>
+      )}
 
-      {/* Controls */}
-      <div className="flex justify-center gap-6 mb-8">
-        <button
-          onClick={isCameraOn ? stopCamera : startCamera}
-          className={`p-4 rounded-full shadow ${
-            isCameraOn ? "bg-red-500 text-white" : "bg-blue-500 text-white"
-          }`}
-        >
-          {isCameraOn ? <CameraOff /> : <Camera />}
-        </button>
-        {isCameraOn && (
-          <button
-            onClick={toggleMute}
-            className={`p-4 rounded-full shadow ${
-              isMuted ? "bg-gray-500 text-white" : "bg-yellow-500 text-white"
-            }`}
-          >
-            {isMuted ? "Unmute" : "Mute"}
-          </button>
-        )}
-      </div>
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Left Side - Camera */}
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-xl shadow">
+            <h3 className="text-lg font-semibold mb-4 text-center">
+              Camera Preview
+            </h3>
+            <div className="flex justify-center">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full max-w-md h-64 bg-black rounded-xl shadow"
+              ></video>
+            </div>
+          </div>
 
-      {/* Question */}
-      <div className="max-w-2xl mx-auto bg-white p-6 rounded-xl shadow">
-        <h3 className="font-semibold text-lg mb-4">
-          Question {currentQ + 1} of {questions.length}
-        </h3>
-        <p className="text-gray-700 mb-4">{questions[currentQ]}</p>
+          {/* Camera Controls */}
+          <div className="bg-white p-6 rounded-xl shadow text-center">
+            <h3 className="text-lg font-semibold mb-4">Camera Controls</h3>
+            <div className="flex justify-center gap-6 mb-4">
+              <button
+                onClick={isCameraOn ? stopCamera : startCamera}
+                className={`p-4 rounded-full shadow ${
+                  isCameraOn ? "bg-red-500 text-white" : "bg-blue-500 text-white"
+                }`}
+              >
+                {isCameraOn ? <CameraOff /> : <Camera />}
+              </button>
+              {isCameraOn && (
+                <button
+                  onClick={toggleMute}
+                  className={`p-4 rounded-full shadow ${
+                    isMuted ? "bg-gray-500 text-white" : "bg-yellow-500 text-white"
+                  }`}
+                >
+                  {isMuted ? "Unmute" : "Mute"}
+                </button>
+              )}
+            </div>
 
-        {/* VoiceRecorder */}
-        <VoiceRecorder
-          stopSignal={stopSignal}
-          onTranscribed={(text) => {
-            const updated = [...answers];
-            updated[currentQ] = text;
-            setAnswers(updated);
-          }}
-        />
+            {/* ⚠️ Note under camera controls */}
+            <p className="text-sm text-red-600 font-semibold">
+              ⚠ Don’t stop camera — if it stops, the interview ends!
+            </p>
+          </div>
+        </div>
 
-        {/* Answer box */}
-        <textarea
-          value={answers[currentQ] || ""}
-          onChange={(e) => {
-            const updated = [...answers];
-            updated[currentQ] = e.target.value;
-            setAnswers(updated);
-          }}
-          className="w-full border rounded p-3 focus:outline-blue-500 mt-4"
-          rows="4"
-          placeholder="Your answer will appear here..."
-        ></textarea>
+        {/* Right Side - Question */}
+        <div className="bg-white p-6 rounded-xl shadow">
+          <h3 className="font-semibold text-lg mb-4">
+            Question {currentQ + 1} of {questions.length}
+          </h3>
+          <p className="text-gray-700 mb-6 text-lg leading-relaxed">
+            {questions[currentQ]}
+          </p>
 
-        <button
-          onClick={nextQuestion}
-          className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-        >
-          {currentQ < questions.length - 1 ? "Next Question" : "Finish"}
-        </button>
+          <div className="mb-6">
+            <VoiceRecorder
+              stopSignal={stopSignal}
+              onTranscribed={(text) => {
+                const updated = [...answers];
+                updated[currentQ] = text;
+                setAnswers(updated);
+              }}
+            />
+          </div>
+
+          <textarea
+            value={answers[currentQ] || ""}
+            onChange={(e) => {
+              const updated = [...answers];
+              updated[currentQ] = e.target.value;
+              setAnswers(updated);
+            }}
+            className="w-full border rounded p-3 focus:outline-blue-500 mb-6"
+            rows="6"
+            placeholder="Your answer will appear here..."
+          ></textarea>
+
+          <div className="flex justify-center">
+            <button
+              onClick={nextQuestion}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold"
+            >
+              {currentQ < questions.length - 1 ? "Next Question" : "Finish Interview"}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

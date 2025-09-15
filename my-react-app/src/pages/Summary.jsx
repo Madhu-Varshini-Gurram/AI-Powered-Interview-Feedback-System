@@ -11,70 +11,156 @@ export default function Summary() {
     answers = [],
     expectedAnswers = [],
   } = location.state || {};
-
   const [evaluations, setEvaluations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+
   const hasEvaluated = useRef(false);
 
   useEffect(() => {
     const fetchEvaluations = async () => {
-      // Prevent multiple calls
-      if (hasEvaluated.current || questions.length === 0) {
-        setIsLoading(false);
-        return;
-      }
+      setIsLoading(true);
+      setError(null);
+      hasEvaluated.current = true;
+
+      console.log("Starting evaluation...");
 
       try {
-        setIsLoading(true);
-        setError(null);
-        hasEvaluated.current = true; // Mark as evaluated
-        
-        console.log("Starting evaluation...");
-        const results = await evaluateAll(questions, answers, expectedAnswers);
+        // Start AI evaluation
+        const aiPromise = evaluateAll(questions, answers, expectedAnswers);
+
+        // Add minimum delay (4.5s for spinner)
+        const delayPromise = new Promise((resolve) => setTimeout(resolve, 4500));
+
+        // Wait for both AI and delay
+        const results = await aiPromise;
+        await delayPromise;
+
         console.log("Evaluation completed");
-        
-        setEvaluations(results);
+
+        // 🔹 Force rating = 0 if no answer, but keep AI feedback
+        const fixedResults = results.map((res, i) => {
+          if (!answers[i] || answers[i] === "❌ No Answer") {
+            return { ...res, rating: 0 };
+          }
+          return res;
+        });
+
+        setEvaluations(fixedResults);
       } catch (err) {
         console.error("Error fetching evaluations:", err);
         setError("Failed to load evaluations. Please try again.");
-        hasEvaluated.current = false; // Reset on error so user can retry
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchEvaluations();
-  }, [questions, answers, expectedAnswers]);
+  }, []); // only once on mount
 
-  const goBack = () => navigate("/dashboard");
+  const goBack = () => navigate("/career-options");
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 pt-20 px-6 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <h2 className="text-xl font-semibold text-gray-700">Evaluating your answers...</h2>
-          <p className="text-gray-500 mt-2">This may take a few moments</p>
-        </div>
-      </div>
-    );
-  }
+      <div
+        style={{
+          minHeight: "100vh",
+          backgroundColor: "#f0f0f0",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexDirection: "column",
+          padding: "20px",
+        }}
+      >
+        {/* Spinner */}
+        <div
+          style={{
+            width: "120px",
+            height: "120px",
+            border: "10px solid #ddd",
+            borderTop: "10px solid #007bff",
+            borderRadius: "50%",
+            marginBottom: "40px",
+            animation: "spin 1s linear infinite",
+          }}
+        ></div>
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-50 pt-20 px-6 flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <div className="text-red-500 text-6xl mb-4">⚠️</div>
-          <h2 className="text-xl font-semibold text-gray-700 mb-2">Evaluation Error</h2>
-          <p className="text-gray-500 mb-6">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-          >
-            Try Again
-          </button>
+        <h1
+          style={{
+            fontSize: "40px",
+            color: "#333",
+            marginBottom: "20px",
+            fontWeight: "bold",
+            textAlign: "center",
+          }}
+        >
+          AI is Processing Your Interview
+        </h1>
+
+        <p
+          style={{
+            fontSize: "22px",
+            color: "#666",
+            marginBottom: "40px",
+            textAlign: "center",
+          }}
+        >
+          Please wait few seconds while AI analyzes your answers...
+        </p>
+
+        {/* Progress bar */}
+        <div
+          style={{
+            width: "500px",
+            height: "10px",
+            backgroundColor: "#ddd",
+            borderRadius: "5px",
+            marginBottom: "30px",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              backgroundColor: "#007bff",
+              borderRadius: "5px",
+              animation: "progress 9s linear infinite",
+            }}
+          ></div>
         </div>
+
+        {/* Loading text */}
+        <div
+          style={{
+            fontSize: "20px",
+            color: "#007bff",
+            fontWeight: "bold",
+            animation: "pulse 2s infinite",
+          }}
+        >
+          Generating AI Response...
+        </div>
+
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+              @keyframes progress {
+                0% { transform: translateX(-100%); }
+                100% { transform: translateX(100%); }
+              }
+              @keyframes pulse {
+                0%, 100% { opacity: 0.7; }
+                50% { opacity: 1; }
+              }
+            `,
+          }}
+        />
       </div>
     );
   }
@@ -97,7 +183,7 @@ export default function Summary() {
 
             <p className="mt-3 text-gray-700">
               <span className="font-semibold">🧑 Your Answer:</span>{" "}
-              {answers[i] || "❌ No Answer"}
+              {answers[i] && answers[i] !== "" ? answers[i] : "❌ No Answer"}
             </p>
 
             <p className="mt-2 text-gray-700">
