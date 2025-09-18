@@ -18,6 +18,7 @@ import Dashboard from "./pages/Dashboard";
 import Project from "./pages/Project";
 import Summary from "./pages/Summary";
 import Profile from "./pages/Profile";
+import InterviewDetail from "./pages/InterviewDetail";
 import Interview from "./Interview";
 import { generateInterviewQA } from "./gemini";
 import CareerOptions from "./pages/CareerOptions";
@@ -31,6 +32,22 @@ const clerkPubKey =
 function AppContent() {
   const { isSignedIn, user } = useUser();
   const { signOut } = useAuth();
+
+  // Clear old interview progress when user logs in
+  useEffect(() => {
+    if (isSignedIn && user) {
+      // Clear any old interview progress from localStorage
+      const keys = Object.keys(localStorage);
+      keys.forEach(key => {
+        if (key.startsWith('interview_') && key.endsWith('_progress')) {
+          localStorage.removeItem(key);
+        }
+        if (key.startsWith('questionHistory:')) {
+          localStorage.removeItem(key);
+        }
+      });
+    }
+  }, [isSignedIn, user]);
 
   // Handle logout
   const handleLogout = async () => {
@@ -231,6 +248,21 @@ function AppContent() {
             <>
               <SignedIn>
                 <Profile />
+              </SignedIn>
+              <SignedOut>
+                <RedirectToSignIn />
+              </SignedOut>
+            </>
+          }
+        />
+
+        {/* Protected Interview Detail */}
+        <Route
+          path="/interview-detail/:id"
+          element={
+            <>
+              <SignedIn>
+                <InterviewDetail />
               </SignedIn>
               <SignedOut>
                 <RedirectToSignIn />

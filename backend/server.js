@@ -123,6 +123,61 @@ app.get('/api/interviews/:id', (req, res) => {
   res.json({ interview: meta, items });
 });
 
+// Delete an interview
+app.delete('/api/interviews/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const headerUserId = req.query.userId;
+  if (!id || !headerUserId) return res.status(400).json({ error: 'id and userId required' });
+
+  const tx = db.transaction(() => {
+    // Check if interview exists and belongs to user
+    const interview = db.prepare('SELECT id FROM interviews WHERE id = ? AND user_id = ?').get(id, headerUserId);
+    if (!interview) return false;
+
+    // Delete interview items first (foreign key constraint)
+    db.prepare('DELETE FROM interview_items WHERE interview_id = ?').run(id);
+    // Delete interview
+    db.prepare('DELETE FROM interviews WHERE id = ?').run(id);
+    return true;
+  });
+
+  try {
+    const deleted = tx();
+    if (!deleted) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to delete interview' });
+  }
+});
+
+// Get overall stats for user
+app.get('/api/me/stats', (req, res) => {
+  const userId = req.query.userId;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+
+  const stats = db.prepare(`
+    SELECT 
+      COUNT(*) as total_interviews,
+      AVG(overall_score) as average_score,
+      MAX(overall_score) as best_score,
+      MIN(overall_score) as worst_score,
+      COUNT(CASE WHEN improved = 1 THEN 1 END) as improved_count,
+      COUNT(CASE WHEN improved = 0 THEN 1 END) as declined_count
+    FROM interviews 
+    WHERE user_id = ? AND overall_score IS NOT NULL
+  `).get(userId);
+
+  res.json({ 
+    total_interviews: stats.total_interviews || 0,
+    average_score: Math.round(stats.average_score || 0),
+    best_score: stats.best_score || 0,
+    worst_score: stats.worst_score || 0,
+    improved_count: stats.improved_count || 0,
+    declined_count: stats.declined_count || 0
+  });
+});
+
 // Initialize DB and start server
 initDb();
 const port = process.env.PORT || 4000;

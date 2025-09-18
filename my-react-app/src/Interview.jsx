@@ -16,19 +16,42 @@ export default function Interview({ title, questions, expectedAnswers }) {
   const streamRef = useRef(null);
   const navigate = useNavigate();
 
-  // Reset answers when starting a new interview
+  // Initialize answers and current question on mount only
   useEffect(() => {
     if (questions.length > 0) {
+      // Check if we have saved progress for this specific interview
+      const savedProgress = localStorage.getItem(`interview_${title}_progress`);
+      if (savedProgress) {
+        try {
+          const { currentQ: savedQ, answers: savedAnswers, timestamp } = JSON.parse(savedProgress);
+          // Only restore if progress is less than 1 hour old
+          if (savedAnswers && savedAnswers.length === questions.length && 
+              timestamp && (Date.now() - timestamp) < 3600000) {
+            setCurrentQ(savedQ || 0);
+            setAnswers(savedAnswers);
+            return;
+          }
+        } catch (e) {
+          console.warn('Invalid saved progress, starting fresh');
+        }
+      }
+      // No saved progress or expired, start fresh
       setAnswers(Array(questions.length).fill(""));
       setCurrentQ(0);
-      localStorage.removeItem("answers");
     }
-  }, [questions.length]);
+  }, [questions.length, title]);
 
-  // Save answers
+  // Save progress including current question
   useEffect(() => {
-    localStorage.setItem("answers", JSON.stringify(answers));
-  }, [answers]);
+    if (questions.length > 0) {
+      const progress = {
+        currentQ,
+        answers,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(`interview_${title}_progress`, JSON.stringify(progress));
+    }
+  }, [answers, currentQ, questions.length, title]);
 
   // Auto-redirect after 5s if warning is shown
   useEffect(() => {
@@ -122,6 +145,8 @@ export default function Interview({ title, questions, expectedAnswers }) {
     if (currentQ < questions.length - 1) {
       setCurrentQ((q) => q + 1);
     } else {
+      // Clear progress when finishing interview
+      localStorage.removeItem(`interview_${title}_progress`);
       navigate("/summary", {
         state: { questions, answers, expectedAnswers, category: title },
       });

@@ -61,10 +61,11 @@ export function selectQuestionsForUser(
     }
   }
 
-  // Persist the new selection
+  // Persist the new selection with session-based key to ensure new questions per login
+  const sessionKey = `questionHistory:${userId || "anon"}:${interviewId}:${Date.now()}`;
   try {
     localStorage.setItem(
-      storageKey,
+      sessionKey,
       JSON.stringify({ indices: selection, ts: Date.now() })
     );
   } catch (_) {}
