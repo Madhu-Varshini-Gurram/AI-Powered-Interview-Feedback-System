@@ -1,16 +1,21 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
 import { evaluateAll } from "../gemini";
+import { useUser } from "@clerk/clerk-react";
+
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
 export default function Summary() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useUser();
 
   const {
     questions = [],
     answers = [],
     expectedAnswers = [],
   } = location.state || {};
+  const category = (location.state && location.state.category) || "Interview";
   const [evaluations, setEvaluations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -47,6 +52,24 @@ export default function Summary() {
         });
 
         setEvaluations(fixedResults);
+
+        // Save to backend
+        try {
+          const payload = {
+            userId: user?.id || "anon",
+            category,
+            questions,
+            answers,
+            expectedAnswers,
+          };
+          await fetch(`${API_BASE}/api/interviews/submit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+        } catch (e) {
+          console.warn('Failed to save interview:', e);
+        }
       } catch (err) {
         console.error("Error fetching evaluations:", err);
         setError("Failed to load evaluations. Please try again.");

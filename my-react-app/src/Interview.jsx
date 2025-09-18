@@ -123,7 +123,7 @@ export default function Interview({ title, questions, expectedAnswers }) {
       setCurrentQ((q) => q + 1);
     } else {
       navigate("/summary", {
-        state: { questions, answers, expectedAnswers },
+        state: { questions, answers, expectedAnswers, category: title },
       });
     }
   };

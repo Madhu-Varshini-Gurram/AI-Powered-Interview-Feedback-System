@@ -17,6 +17,7 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Project from "./pages/Project";
 import Summary from "./pages/Summary";
+import Profile from "./pages/Profile";
 import Interview from "./Interview";
 import { generateInterviewQA } from "./gemini";
 import CareerOptions from "./pages/CareerOptions";
@@ -215,6 +216,21 @@ function AppContent() {
             <>
               <SignedIn>
                 <Dashboard />
+              </SignedIn>
+              <SignedOut>
+                <RedirectToSignIn />
+              </SignedOut>
+            </>
+          }
+        />
+
+        {/* Protected Profile */}
+        <Route
+          path="/profile"
+          element={
+            <>
+              <SignedIn>
+                <Profile />
               </SignedIn>
               <SignedOut>
                 <RedirectToSignIn />

@@ -252,6 +252,17 @@ export default function Navbar({ isLoggedIn, setIsLoggedIn, currentUser, setCurr
                     </p>
                   </div>
 
+                  {/* Links */}
+                  <div className="px-4 py-2">
+                    <Link
+                      to="/profile"
+                      className="flex items-center justify-center w-full px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors border border-blue-200 hover:border-blue-300"
+                      onClick={() => setIsProfileDropdownOpen(false)}
+                    >
+                      Profile
+                    </Link>
+                  </div>
+
                   {/* Sign Out Button */}
                   <div className="px-4 py-2">
                     <button
@@ -334,6 +345,13 @@ export default function Navbar({ isLoggedIn, setIsLoggedIn, currentUser, setCurr
               onClick={closeMobileMenu}
             >
               Dashboard
+            </Link>
+            <Link
+              to="/profile"
+              className="block px-3 py-2 text-base font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+              onClick={closeMobileMenu}
+            >
+              Profile
             </Link>
             <button
               onClick={handleLogout}
